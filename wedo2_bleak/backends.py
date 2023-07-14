@@ -64,6 +64,7 @@ class CharReader:
         self.char_uuid = char_uuid
         #the queue must be limited by a certain size
         self.queue = asyncio.Queue(QUEUE_SIZE)
+        self.latest_result = None
 
     def queue_put(self, data):
         try:
@@ -81,7 +82,8 @@ class CharReader:
 
     def queue_get(self, timeout=0.1):
         try:
-            return _wait(asyncio.wait_for(self.queue.get(), timeout))
+            result = _wait(asyncio.wait_for(self.queue.get(), timeout))
+            self.latest_result = result
         except asyncio.TimeoutError:
             return b''
         
@@ -89,15 +91,13 @@ class CharReader:
         '''
         get the most latest update (based on bgapi behaviour)
         '''
-        prev, cur = None, None
         result = None
         while True:
-            prev = cur
             cur = self.queue_get(timeout)
             if cur == b'':
-                if prev is not None:
+                if self.latest_result is not None:
                     #prefer data instead of no data (which is caused by a timeout)
-                    result = prev
+                    result = self.latest_result
                 else:
                     result = cur
                 #either way, we got to the end of the queue
